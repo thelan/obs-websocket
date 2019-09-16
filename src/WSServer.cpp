@@ -51,6 +51,7 @@ WSServer::WSServer()
 	_server.set_open_handler(bind(&WSServer::onOpen, this, ::_1));
 	_server.set_close_handler(bind(&WSServer::onClose, this, ::_1));
 	_server.set_message_handler(bind(&WSServer::onMessage, this, ::_1, ::_2));
+	_server.set_http_handler(bind(&WSServer::onHttpRequest, this, ::_1));
 }
 
 WSServer::~WSServer()
@@ -185,6 +186,36 @@ void WSServer::onMessage(connection_hdl hdl, server::message_ptr message)
 	});
 }
 
+void WSServer::onHttpRequest(connection_hdl hdl)
+{
+	server::connection_ptr con = _server.get_con_from_hdl(hdl);
+	if (!con) {
+		return;
+	}
+
+	// special case: handle POST requests to /execute
+	auto httpRequest = con->get_request();
+	if (httpRequest.get_method() == "POST") {
+		websocketpp::uri_ptr requestUri = con->get_uri();
+		auto uriResource = QString::fromStdString(requestUri->get_resource());
+		
+		if (uriResource.startsWith("/execute")) {
+			con->defer_http_response();
+			QtConcurrent::run(&_threadPool, [=]() {
+				websocketpp::lib::error_code ec;
+				handleHttpExecute(con);
+				con->send_http_response(ec);
+			});
+		}
+		
+		return;
+	}
+
+	// default case: return 426 Upgrade Required
+	con->set_status(websocketpp::http::status_code::upgrade_required);
+	con->set_body("");
+}
+
 void WSServer::onClose(connection_hdl hdl)
 {
 	QMutexLocker locker(&_clMutex);
@@ -200,6 +231,22 @@ void WSServer::onClose(connection_hdl hdl)
 		notifyDisconnection(clientIp);
 		blog(LOG_INFO, "client %s disconnected", clientIp.toUtf8().constData());
 	}
+}
+
+void WSServer::handleHttpExecute(server::connection_ptr con)
+{
+	websocketpp::http::parser::request request = con->get_request();
+	std::string requestBody = request.get_body();
+
+	QMutexLocker locker(&_clMutex);
+	ConnectionProperties& connProperties = _connectionProperties[con->get_handle()];
+	locker.unlock();
+
+	WSRequestHandler handler(connProperties);
+	std::string response = handler.processIncomingMessage(requestBody);
+
+	con->set_status(websocketpp::http::status_code::ok);
+	con->set_body(response);
 }
 
 QString WSServer::getRemoteEndpoint(connection_hdl hdl)

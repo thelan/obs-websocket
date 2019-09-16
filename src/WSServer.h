@@ -54,7 +54,10 @@ public:
 private:
 	void onOpen(connection_hdl hdl);
 	void onMessage(connection_hdl hdl, server::message_ptr message);
+	void onHttpRequest(connection_hdl hdl);
 	void onClose(connection_hdl hdl);
+
+	void handleHttpExecute(server::connection_ptr con);
 
 	QString getRemoteEndpoint(connection_hdl hdl);
 	void notifyConnection(QString clientIp);
