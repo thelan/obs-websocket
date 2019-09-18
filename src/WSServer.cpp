@@ -238,22 +238,22 @@ void WSServer::handleHttpExecute(server::connection_ptr con)
 	websocketpp::http::parser::request request = con->get_request();
 	std::string requestBody = request.get_body();
 
+	ConnectionProperties connProperties;
+
 	if (GetConfig()->AuthRequired) {
 		QString authHeaderValue = QString::fromStdString(
 			request.get_header("Authorization")
 		);
 
-		if (GetConfig()->CheckHttpAuth(authHeaderValue) == false) {
+		if (GetConfig()->CheckHttpAuth(authHeaderValue)) {
+			connProperties.setAuthenticated(true);
+		} else {
 			con->set_status(websocketpp::http::status_code::unauthorized);
 			con->append_header("WWW-Authenticate", "Basic realm=\"obs-websocket\"");
 			con->set_body("");
 			return;
 		}
 	}
-
-	QMutexLocker locker(&_clMutex);
-	ConnectionProperties& connProperties = _connectionProperties[con->get_handle()];
-	locker.unlock();
 
 	WSRequestHandler handler(connProperties);
 	std::string response = handler.processIncomingMessage(requestBody);
