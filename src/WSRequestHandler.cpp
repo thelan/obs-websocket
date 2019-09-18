@@ -178,7 +178,7 @@ HandlerResponse WSRequestHandler::processRequest(std::string& textMessage){
 		return SendErrorResponse("invalid JSON payload");
 	}
 
-	if (!hasField("request-type") || !hasField("message-id")) {
+	if (!hasField("request-type")) {
 		return SendErrorResponse("missing request parameters");
 	}
 
