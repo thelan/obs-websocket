@@ -841,6 +841,9 @@ void WSEvents::Heartbeat() {
 
 	OBSSourceAutoRelease currentScene = obs_frontend_get_current_scene();
 	obs_data_set_string(data, "current-scene", obs_source_get_name(currentScene));
+	
+	bool previewActive = obs_frontend_preview_program_mode_active();
+	obs_data_set_bool(data, "studio-mode", previewActive);
 
 	obs_data_set_bool(data, "streaming", streamingActive);
 	if (streamingActive) {
